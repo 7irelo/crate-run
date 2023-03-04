@@ -1,9 +1,10 @@
-package com.variate.dao;
+package com.variate.dao.impl;
 
-import com.variate.dao.impl.CategoryDaoImpl;
+import com.variate.TestDataUtil;
 import com.variate.model.Category;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -22,17 +23,22 @@ public class CategoryDaoImplTests {
 
     @Test
     public void testThatCreateCategoryGeneratesCorrectSql() {
-        Category category = Category.builder()
-                .Id(1L)
-                .Name("Electronics")
-                .Description("Gadgets and consoles")
-                .ImageUrl("electronics.jpg")
-                .build();
+        Category category = TestDataUtil.createTestCategory();
         underTest.create(category);
 
         verify(jdbcTemplate).update(
                 eq("INSERT INTO categories (id, name, description, image_url) VALUES (?, ?, ?, ?)"),
                 eq(1L), eq("Electronics"), eq("Gadgets and consoles"), eq("electronics.jpg")
+        );
+    }
+
+    @Test
+    public void testThatFindOneGeneratesCorrectSql() {
+        underTest.findOne(1L);
+        verify(jdbcTemplate).query(
+                eq("SELECT id, name, description, image_url FROM categories WHERE id = ? LIMIT 1"),
+                ArgumentMatchers.<CategoryDaoImpl.CategoryRowMapper>any(),
+                eq(1L)
         );
     }
 }
