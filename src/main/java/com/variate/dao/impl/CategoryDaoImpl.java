@@ -36,6 +36,12 @@ public class CategoryDaoImpl implements CategoryDao {
         return results.stream().findFirst();
     }
 
+    @Override
+    public List<Category> find() {
+        return jdbcTemplate.query("SELECT id, name, description, image_url FROM categories",
+        new CategoryRowMapper());
+    }
+
     public static class CategoryRowMapper implements RowMapper<Category> {
 
         @Override

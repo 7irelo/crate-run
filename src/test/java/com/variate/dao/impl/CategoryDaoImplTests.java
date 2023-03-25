@@ -23,7 +23,7 @@ public class CategoryDaoImplTests {
 
     @Test
     public void testThatCreateCategoryGeneratesCorrectSql() {
-        Category category = TestDataUtil.createTestCategory();
+        Category category = TestDataUtil.createTestCategoryA();
         underTest.create(category);
 
         verify(jdbcTemplate).update(
@@ -39,6 +39,15 @@ public class CategoryDaoImplTests {
                 eq("SELECT id, name, description, image_url FROM categories WHERE id = ? LIMIT 1"),
                 ArgumentMatchers.<CategoryDaoImpl.CategoryRowMapper>any(),
                 eq(1L)
+        );
+    }
+
+    @Test
+    void testThatFindManyGeneratesCorrectSql() {
+        underTest.find();
+        verify(jdbcTemplate).query(
+                eq("SELECT id, name, description, image_url FROM categories"),
+                ArgumentMatchers.<CategoryDaoImpl.CategoryRowMapper>any()
         );
     }
 }

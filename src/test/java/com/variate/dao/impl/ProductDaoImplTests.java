@@ -27,12 +27,12 @@ public class ProductDaoImplTests {
     @Test
     public void testThatCreateProductGeneratesCorrectSql() throws ParseException {
 
-        Product product = TestDataUtil.createTestProduct();
+        Product product = TestDataUtil.createTestProductA();
         underTest.create(product);
 
         verify(jdbcTemplate).update(
                 eq("INSERT INTO products (id, category_id, name, description, price, image_url, on_sale) VALUES (?, ?, ?, ?, ?, ?, ?)"),
-                eq(1L), eq(1L), eq("IPhone 11 Pro Max"), eq("Deez"), eq(10000F), eq("iphone_11_pro_max.jpg"), eq(false)
+                eq(1L), eq(1L), eq("Samsung A15 Blue"), eq("A sleek smartphone with a powerful processor."), eq(5999F), eq("samsung_a15_blue.jpg"), eq(true)
         );
     }
 
@@ -43,6 +43,15 @@ public class ProductDaoImplTests {
                 eq("SELECT id, category_id, name, description, price, image_url, on_sale FROM products WHERE id = ? LIMIT 1"),
                 ArgumentMatchers.<ProductDaoImpl.ProductRowMapper>any(),
                 eq(1L)
+        );
+    }
+
+    @Test
+    void testThatFindManyGeneratesCorrectSql() {
+        underTest.find();
+        verify(jdbcTemplate).query(
+                eq("SELECT id, category_id, name, description, price, image_url, on_sale FROM products"),
+                ArgumentMatchers.<ProductDaoImpl.ProductRowMapper>any()
         );
     }
 }

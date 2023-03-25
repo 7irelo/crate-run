@@ -39,6 +39,14 @@ public class ProductDaoImpl implements ProductDao {
         return results.stream().findFirst();
     }
 
+    @Override
+    public List<Product> find() {
+        return jdbcTemplate.query(
+                "SELECT id, category_id, name, description, price, image_url, on_sale FROM products",
+                new ProductRowMapper()
+        );
+    }
+
     public static class ProductRowMapper implements RowMapper<Product> {
 
         @Override
