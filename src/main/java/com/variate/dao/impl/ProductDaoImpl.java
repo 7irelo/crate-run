@@ -47,6 +47,22 @@ public class ProductDaoImpl implements ProductDao {
         );
     }
 
+    @Override
+    public void update(Long id, Product product) {
+        jdbcTemplate.update(
+                "UPDATE products SET id = ?, category_id = ?, name = ?, description = ?, price = ?, image_url = ?, on_sale = ? WHERE id = ?",
+                product.getId(), product.getCategoryId(), product.getName(), product.getDescription(), product.getPrice(), product.getImageUrl(), product.getOnSale(), id
+        );
+    }
+
+    @Override
+    public void delete(long id) {
+        jdbcTemplate.update(
+                "DELETE FROM products WHERE id = ?"
+                , id
+        );
+    }
+
     public static class ProductRowMapper implements RowMapper<Product> {
 
         @Override

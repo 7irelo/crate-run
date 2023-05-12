@@ -62,4 +62,35 @@ public class ProductDaoImplIntegrationTests {
         List<Product> result = underTest.find();
         assertThat(result).hasSize(3).containsExactly(productA, productB, productC);
     }
+
+    @Test
+    void testThatProductCanBeUpdated() {
+        Category category = TestDataUtil.createTestCategoryA();
+        categoryDao.create(category);
+
+        Product product = TestDataUtil.createTestProductA();
+        product.setCategoryId(category.getId());
+        underTest.create(product);
+
+        product.setName("UPDATED");
+        underTest.update(product.getId(), product);
+
+        Optional<Product> result = underTest.findOne(product.getId());
+        assertThat(result).isPresent();
+        assertThat(result.get()).isEqualTo(product);
+    }
+
+    @Test
+    void testThatProductCanBeDeleted() {
+        Category category = TestDataUtil.createTestCategoryA();
+        categoryDao.create(category);
+
+        Product product = TestDataUtil.createTestProductA();
+        product.setCategoryId(category.getId());
+        underTest.create(product);
+
+        underTest.delete(product.getId());
+        Optional<Product> result = underTest.findOne(product.getId());
+        assertThat(result).isEmpty();
+    }
 }

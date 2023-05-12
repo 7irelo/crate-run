@@ -11,4 +11,8 @@ public interface CategoryDao {
     Optional<Category> findOne(long l);
 
     List<Category> find();
+
+    void update(long id, Category category);
+
+    void delete(long id);
 }

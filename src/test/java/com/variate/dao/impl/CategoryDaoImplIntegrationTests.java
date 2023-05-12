@@ -48,4 +48,26 @@ public class CategoryDaoImplIntegrationTests {
         List<Category> result =  underTest.find();
         assertThat(result).hasSize(3).containsExactly(categoryA, categoryB, categoryC);
     }
+
+    @Test
+    void testThatCategoryCanBeUpdated() {
+        Category category = TestDataUtil.createTestCategoryA();
+        underTest.create(category);
+
+        category.setName("UPDATED");
+        underTest.update(category.getId(), category);
+
+        Optional<Category> result = underTest.findOne(category.getId());
+        assertThat(result).isPresent();
+        assertThat(result.get()).isEqualTo(category);
+    }
+
+    @Test
+    void testThatCategoryCanDeleted() {
+        Category category = TestDataUtil.createTestCategoryA();
+        underTest.create(category);
+        underTest.delete(category.getId());
+        Optional<Category>result = underTest.findOne(category.getId());
+        assertThat(result).isEmpty();
+    }
 }

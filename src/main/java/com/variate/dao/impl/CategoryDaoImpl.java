@@ -42,6 +42,22 @@ public class CategoryDaoImpl implements CategoryDao {
         new CategoryRowMapper());
     }
 
+    @Override
+    public void update(long id, Category category) {
+        jdbcTemplate.update(
+                "UPDATE categories SET id = ?, name = ?, description = ?, image_url = ? WHERE id = ?",
+                category.getId(), category.getName(), category.getDescription(), category.getImageUrl(), id
+        );
+    }
+
+    @Override
+    public void delete(long id) {
+        jdbcTemplate.update(
+                "DELETE FROM categories WHERE id = ?",
+                id
+        );
+    }
+
     public static class CategoryRowMapper implements RowMapper<Category> {
 
         @Override

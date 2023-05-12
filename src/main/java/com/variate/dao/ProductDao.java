@@ -12,4 +12,8 @@ public interface ProductDao {
     Optional<Product> findOne(long l);
 
     List<Product> find();
+
+    void update(Long id, Product product);
+
+    void delete(long id);
 }

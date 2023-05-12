@@ -1,6 +1,7 @@
 package com.variate.dao.impl;
 
 import com.variate.TestDataUtil;
+import com.variate.model.Category;
 import com.variate.model.Product;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,6 +53,25 @@ public class ProductDaoImplTests {
         verify(jdbcTemplate).query(
                 eq("SELECT id, category_id, name, description, price, image_url, on_sale FROM products"),
                 ArgumentMatchers.<ProductDaoImpl.ProductRowMapper>any()
+        );
+    }
+
+    @Test
+    void testThatUpdateGeneratesCorrectSql() {
+        Product product = TestDataUtil.createTestProductA();
+        underTest.update(product.getId(), product);
+        verify(jdbcTemplate).update(
+                eq("UPDATE products SET id = ?, category_id = ?, name = ?, description = ?, price = ?, image_url = ?, on_sale = ? WHERE id = ?"),
+                eq(1L), eq(1L), eq("Samsung A15 Blue"), eq("A sleek smartphone with a powerful processor."), eq(5999F), eq("samsung_a15_blue.jpg"), eq(true), eq(1L)
+        );
+    }
+
+    @Test
+    void testThatDeleteGeneratesCorrectSql() {
+        underTest.delete(1L);
+        verify(jdbcTemplate).update(
+                eq("DELETE FROM products WHERE id = ?"),
+                eq(1L)
         );
     }
 }

@@ -50,4 +50,24 @@ public class CategoryDaoImplTests {
                 ArgumentMatchers.<CategoryDaoImpl.CategoryRowMapper>any()
         );
     }
+
+    @Test
+    void testThatUpdateGeneratesCorrectSql() {
+        Category category = TestDataUtil.createTestCategoryA();
+        underTest.update(category.getId(), category);
+
+        verify(jdbcTemplate).update(
+                eq("UPDATE categories SET id = ?, name = ?, description = ?, image_url = ? WHERE id = ?"),
+                eq(1L), eq("Electronics"), eq("Gadgets and consoles"), eq("electronics.jpg"), eq(1L)
+        );
+    }
+
+    @Test
+    void testThatDeleteGeneratesCorrectSql() {
+        underTest.delete(1L);
+        verify(jdbcTemplate).update(
+                eq("DELETE FROM categories WHERE id = ?"),
+                eq(1L)
+        );
+    }
 }
