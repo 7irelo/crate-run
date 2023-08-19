@@ -1,9 +1,8 @@
 package com.variate.dao.impl;
 
 import com.variate.dao.ProductDao;
-import com.variate.model.Category;
-import com.variate.model.Product;
-import org.springframework.boot.actuate.endpoint.Producible;
+import com.variate.model.entities.Product;
+
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Component;
@@ -50,21 +49,27 @@ public class ProductDaoImpl implements ProductDao {
     @Override
     public void update(Long id, Product product) {
         jdbcTemplate.update(
-                "UPDATE products SET id = ?, category_id = ?, name = ?, description = ?, price = ?, image_url = ?, on_sale = ? WHERE id = ?",
-                product.getId(), product.getCategoryId(), product.getName(), product.getDescription(), product.getPrice(), product.getImageUrl(), product.getOnSale(), id
+                "UPDATE products SET name = ?, category_id = ?, description = ?, price = ?, image_url = ?, on_sale = ? WHERE id = ?",
+                product.getName(), product.getCategoryId(), product.getDescription(), product.getPrice(), product.getImageUrl(), product.getOnSale(), id
+        );
+    }
+
+    public void patch(Long id, String name, Float price, String imageUrl, Boolean onSale) {
+        jdbcTemplate.update(
+                "UPDATE products SET name = COALESCE(?, name), price = COALESCE(?, price), image_url = COALESCE(?, image_url), on_sale = COALESCE(?, on_sale) WHERE id = ?",
+                name, price, imageUrl, onSale, id
         );
     }
 
     @Override
     public void delete(long id) {
         jdbcTemplate.update(
-                "DELETE FROM products WHERE id = ?"
-                , id
+                "DELETE FROM products WHERE id = ?",
+                id
         );
     }
 
     public static class ProductRowMapper implements RowMapper<Product> {
-
         @Override
         public Product mapRow(ResultSet rs, int rowNum) throws SQLException {
             return Product.builder()

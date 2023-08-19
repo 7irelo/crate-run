@@ -1,9 +1,9 @@
 package com.variate.dao;
 
-import com.variate.model.Category;
-
 import java.util.List;
 import java.util.Optional;
+
+import com.variate.model.entities.Category;
 
 public interface CategoryDao {
     void create(Category category);

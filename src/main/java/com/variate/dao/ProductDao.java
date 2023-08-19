@@ -1,7 +1,6 @@
 package com.variate.dao;
 
-import com.variate.model.Category;
-import com.variate.model.Product;
+import com.variate.model.entities.Product;
 
 import java.util.List;
 import java.util.Optional;

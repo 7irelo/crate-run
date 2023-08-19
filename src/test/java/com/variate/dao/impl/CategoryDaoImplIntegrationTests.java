@@ -1,7 +1,8 @@
 package com.variate.dao.impl;
 
 import com.variate.TestDataUtil;
-import com.variate.model.Category;
+import com.variate.model.entities.Category;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;

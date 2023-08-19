@@ -2,8 +2,9 @@ package com.variate.dao.impl;
 
 import com.variate.TestDataUtil;
 import com.variate.dao.CategoryDao;
-import com.variate.model.Category;
-import com.variate.model.Product;
+import com.variate.model.entities.Category;
+import com.variate.model.entities.Product;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;

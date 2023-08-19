@@ -1,7 +1,7 @@
 package com.variate;
 
-import com.variate.model.Category;
-import com.variate.model.Product;
+import com.variate.model.entities.Category;
+import com.variate.model.entities.Product;
 
 public final class TestDataUtil {
     private TestDataUtil() {
