@@ -21,11 +21,12 @@ public class OrderDaoImpl implements OrderDao {
     }
 
     @Override
-    public void create(Order order) {
+    public Order create(Order order) {
         jdbcTemplate.update(
             "INSERT INTO orders (user_id, order_date_time, total_cost, status) VALUES (?, ?, ?, ?)",
             order.getUserId(), order.getOrderDateTime(), order.getTotalCost(), order.getStatus()
         );
+        return order;
     }
 
     @Override

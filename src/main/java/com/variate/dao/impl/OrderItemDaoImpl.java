@@ -21,11 +21,12 @@ public class OrderItemDaoImpl implements OrderItemDao {
     }
 
     @Override
-    public void create(OrderItem orderItem) {
+    public OrderItem create(OrderItem orderItem) {
         jdbcTemplate.update(
             "INSERT INTO order_items (order_id, product_id, quantity, unit_price) VALUES (?, ?, ?, ?)",
-            orderItem.getOrder().getId(), orderItem.getProduct().getId(), orderItem.getQuantity(), orderItem.getUnitPrice()
+            orderItem.getOrderId(), orderItem.getProductId(), orderItem.getQuantity(), orderItem.getUnitPrice()
         );
+        return orderItem;
     }
 
     @Override
@@ -46,9 +47,40 @@ public class OrderItemDaoImpl implements OrderItemDao {
     public void update(Long id, OrderItem orderItem) {
         jdbcTemplate.update(
             "UPDATE order_items SET order_id = ?, product_id = ?, quantity = ?, unit_price = ? WHERE id = ?",
-            orderItem.getOrder().getId(), orderItem.getProduct().getId(), orderItem.getQuantity(), orderItem.getUnitPrice(), id
+            orderItem.getOrderId(), orderItem.getProductId(), orderItem.getQuantity(), orderItem.getUnitPrice(), id
         );
     }
+
+    @Override
+    public void patch(Long id, Integer quantity, Integer unitPrice) {
+        StringBuilder query = new StringBuilder("UPDATE order_items SET ");
+        boolean addComma = false;
+
+        if (quantity != null) {
+            query.append("quantity = ?");
+            addComma = true;
+        }
+
+        if (unitPrice != null) {
+            if (addComma) query.append(", ");
+            query.append("unit_price = ?");
+        }
+
+        query.append(" WHERE id = ?");
+
+        // Dynamically pass the non-null fields and the id to update
+        Object[] args;
+        if (quantity != null && unitPrice != null) {
+            args = new Object[] { quantity, unitPrice, id };
+        } else if (quantity != null) {
+            args = new Object[] { quantity, id };
+        } else {
+            args = new Object[] { unitPrice, id };
+        }
+
+        jdbcTemplate.update(query.toString(), args);
+    }
+
 
     @Override
     public void delete(Long id) {

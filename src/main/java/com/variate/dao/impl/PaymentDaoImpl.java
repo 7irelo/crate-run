@@ -21,11 +21,12 @@ public class PaymentDaoImpl implements PaymentDao {
     }
 
     @Override
-    public void create(Payment payment) {
+    public Payment create(Payment payment) {
         jdbcTemplate.update(
             "INSERT INTO payments (order_id, payment_method, payment_date, amount) VALUES (?, ?, ?, ?)",
-            payment.getOrder().getId(), payment.getPaymentMethod(), payment.getPaymentDate(), payment.getAmount()
+            payment.getOrderId(), payment.getPaymentMethod(), payment.getPaymentDate(), payment.getAmount()
         );
+        return payment;
     }
 
     @Override
@@ -46,9 +47,42 @@ public class PaymentDaoImpl implements PaymentDao {
     public void update(Long id, Payment payment) {
         jdbcTemplate.update(
             "UPDATE payments SET order_id = ?, payment_method = ?, payment_date = ?, amount = ? WHERE id = ?",
-            payment.getOrder().getId(), payment.getPaymentMethod(), payment.getPaymentDate(), payment.getAmount(), id
+            payment.getOrderId(), payment.getPaymentMethod(), payment.getPaymentDate(), payment.getAmount(), id
         );
     }
+
+    @Override
+    public void patch(Long id, Float amount, String paymentMethod) {
+        StringBuilder query = new StringBuilder("UPDATE payments SET ");
+        boolean addComma = false;
+
+        if (amount != null) {
+            query.append("amount = ?");
+            addComma = true;
+        }
+
+        if (paymentMethod != null) {
+            if (addComma) {
+                query.append(", ");
+            }
+            query.append("payment_method = ?");
+        }
+
+        query.append(" WHERE id = ?");
+
+        // Prepare arguments dynamically
+        Object[] args;
+        if (amount != null && paymentMethod != null) {
+            args = new Object[] { amount, paymentMethod, id };
+        } else if (amount != null) {
+            args = new Object[] { amount, id };
+        } else {
+            args = new Object[] { paymentMethod, id };
+        }
+
+        jdbcTemplate.update(query.toString(), args);
+    }
+
 
     @Override
     public void delete(Long id) {

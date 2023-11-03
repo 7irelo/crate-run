@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 public interface OrderDao {
-    void create(Order order);
+    Order create(Order order);
     Optional<Order> findOne(Long id);
     List<Order> find();
     void update(Long id, Order order);

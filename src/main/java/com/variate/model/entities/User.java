@@ -17,9 +17,9 @@ import java.util.stream.Collectors;
 @NoArgsConstructor
 @AllArgsConstructor
 public class User implements UserDetails {
-
     private Long id;
     private String username;
+    private String email;
     private String password;
     private Set<Role> roles = new HashSet<>();
 

@@ -1,0 +1,15 @@
+### GET request to get all users
+GET localhost:8080/api/users
+
+### POST request to log in a user
+POST http://localhost:8080/api/users/login
+Content-Type: application/json
+
+{
+  "username": "admin",
+  "password": "password"
+}
+
+### GET request to get all users
+GET http://localhost:8080/api/users
+Authorization: Basic YWRtaW46cGFzc3dvcmQ=

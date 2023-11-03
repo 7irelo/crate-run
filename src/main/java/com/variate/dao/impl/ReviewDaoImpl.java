@@ -24,8 +24,8 @@ public class ReviewDaoImpl implements ReviewDao {
     public void create(Review review) {
         jdbcTemplate.update(
             "INSERT INTO reviews (product_id, user_id, rating, review_comment) VALUES (?, ?, ?, ?)",
-            review.getProduct().getId(), 
-            review.getUser().getId(), 
+            review.getProductId(),
+            review.getUserId(),
             review.getRating(), 
             review.getReviewComment()
         );
@@ -45,7 +45,6 @@ public class ReviewDaoImpl implements ReviewDao {
         return jdbcTemplate.query("SELECT * FROM reviews", new ReviewRowMapper());
     }
 
-    @Override
     public List<Review> findByProductId(Long productId) {
         return jdbcTemplate.query(
             "SELECT * FROM reviews WHERE product_id = ?",
@@ -57,8 +56,8 @@ public class ReviewDaoImpl implements ReviewDao {
     public void update(Long id, Review review) {
         jdbcTemplate.update(
             "UPDATE reviews SET product_id = ?, user_id = ?, rating = ?, review_comment = ? WHERE id = ?",
-            review.getProduct().getId(), 
-            review.getUser().getId(), 
+            review.getProductId(),
+            review.getUserId(),
             review.getRating(), 
             review.getReviewComment(), 
             id

@@ -54,11 +54,47 @@ public class ProductDaoImpl implements ProductDao {
         );
     }
 
+    @Override
     public void patch(Long id, String name, Float price, String imageUrl, Boolean onSale) {
-        jdbcTemplate.update(
-                "UPDATE products SET name = COALESCE(?, name), price = COALESCE(?, price), image_url = COALESCE(?, image_url), on_sale = COALESCE(?, on_sale) WHERE id = ?",
-                name, price, imageUrl, onSale, id
-        );
+        StringBuilder query = new StringBuilder("UPDATE products SET ");
+        boolean addComma = false;
+
+        if (name != null) {
+            query.append("name = ?");
+            addComma = true;
+        }
+
+        if (price != null) {
+            if (addComma) query.append(", ");
+            query.append("price = ?");
+            addComma = true;
+        }
+
+        if (imageUrl != null) {
+            if (addComma) query.append(", ");
+            query.append("image_url = ?");
+            addComma = true;
+        }
+
+        if (onSale != null) {
+            if (addComma) query.append(", ");
+            query.append("on_sale = ?");
+        }
+
+        query.append(" WHERE id = ?");
+
+        // Prepare arguments dynamically
+        Object[] args;
+        if (name != null && price != null && imageUrl != null && onSale != null) {
+            args = new Object[] { name, price, imageUrl, onSale, id };
+        } else {
+            args = new Object[]{name,
+                    price,
+                    imageUrl,
+                    onSale, id};
+        }
+
+        jdbcTemplate.update(query.toString(), args);
     }
 
     @Override
