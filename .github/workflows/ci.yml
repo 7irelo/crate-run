@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUSTFLAGS: "-D warnings"
+
+jobs:
+  # ── Lint & unit tests (no root required) ──────────────────────────
+  check:
+    name: Lint & Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Unit tests
+        run: cargo test --lib
+
+      - name: External unit tests
+        run: cargo test --test unit_id --test unit_state --test unit_config
+
+  # ── Integration tests (require root + rootfs) ────────────────────
+  integration:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry & build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-integ-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-integ-
+
+      - name: Download Alpine minirootfs
+        run: |
+          mkdir -p tests/rootfs
+          ALPINE_VERSION="3.20.3"
+          TARBALL="alpine-minirootfs-${ALPINE_VERSION}-x86_64.tar.gz"
+          URL="https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/${TARBALL}"
+          curl -fsSL -o "/tmp/${TARBALL}" "${URL}"
+          tar -xzf "/tmp/${TARBALL}" -C tests/rootfs
+
+      - name: Verify rootfs
+        run: |
+          ls tests/rootfs/bin/sh
+          echo "rootfs looks good"
+
+      - name: Build
+        run: cargo build --all-targets
+
+      - name: Run integration tests as root
+        run: |
+          sudo env "PATH=$PATH" \
+               "HOME=$(mktemp -d)" \
+               "CRATERUN_TEST_ROOTFS=$(pwd)/tests/rootfs" \
+               $(which cargo) test --test integration_smoke -- --test-threads=1

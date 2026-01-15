@@ -1,163 +1,243 @@
-# **Variate JDBC API**
+# CrateRun
 
-![variate](https://github.com/user-attachments/assets/5309b3ad-4cef-41ca-bf11-70d5e441f00f)
+A minimal Linux container runtime written in Rust. Think of it as a Docker-lite
+for educational purposes — it uses real Linux kernel primitives (namespaces,
+cgroups v2, pivot_root) to isolate and resource-limit processes.
 
-**Variate JDBC API** is a Spring Boot-based e-commerce backend application that provides a RESTful API for managing categories, products, orders, order items, payments, and reviews. The application integrates with PostgreSQL as its primary database and supports JWT-based authentication for secure access.
+> **Warning:** This is an educational project. It is **not** production-hardened.
+> Do not use it to run untrusted workloads.
 
-## **Features**
+## Features (v1)
 
-- **Category Management**: Create, read, update, patch, and delete product categories.
-- **Product Management**: Handle products under different categories, including information such as price, description, and stock availability.
-- **Order Management**: Create, update, and manage customer orders.
-- **Order Item Management**: Handle individual items within customer orders.
-- **Payment Management**: Manage payment details related to customer orders.
-- **Review Management**: Customers can add, update, and manage reviews for products.
-- **JWT Authentication**: Secure API access using JSON Web Tokens (JWT).
-- **Swagger Documentation**: Explore and interact with the API using Swagger UI.
+| Feature | Status |
+|---|---|
+| PID, mount, UTS, IPC, network namespaces | Done |
+| `pivot_root` into a rootfs | Done |
+| `/proc` and minimal `/dev` inside container | Done |
+| cgroups v2: memory, CPU, PID limits | Done |
+| Container state persistence (`ps`, `rm`, `logs`) | Done |
+| stdout/stderr capture to log files | Done |
+| `exec` into a running container | Done |
+| Hostname isolation | Done |
+| Exit-code propagation | Done |
+| Rootfs safety validation | Done |
 
-## **Technologies Used**
+## Prerequisites
 
-- **Java 22**
-- **Spring Boot 3.3.3**
-- **JDBC** for direct database access and SQL queries
-- **Spring Security** with JWT for authentication and authorization
-- **PostgreSQL** as the primary database
-- **H2** for in-memory testing
-- **ModelMapper** for DTO conversions
-- **Swagger/OpenAPI** for API documentation
-- **Maven** for dependency management and build automation
+- **Linux** (x86_64). Tested on Ubuntu 22.04+.
+- **Rust** stable toolchain (edition 2021).
+- **Root privileges** — the runtime uses `unshare(2)`, `pivot_root(2)`, and
+  writes to `/sys/fs/cgroup`, all of which require root or `CAP_SYS_ADMIN`.
+- **cgroups v2** (unified hierarchy) mounted at `/sys/fs/cgroup`. Most modern
+  distros (Ubuntu 22.04+, Fedora 31+) use this by default. Check with:
 
-## **Database Setup**
+  ```bash
+  mount | grep cgroup2
+  # Expected: cgroup2 on /sys/fs/cgroup type cgroup2 (rw,...)
+  ```
 
-This project uses PostgreSQL as the database. The default configuration assumes a database named `variatespring`. Ensure PostgreSQL is installed and running in your local environment, and update the credentials in the `application.properties` file as needed.
+  If your system still uses cgroups v1, you can boot with
+  `systemd.unified_cgroup_hierarchy=1` on the kernel command line.
 
-Example `application.properties` configuration:
+## Getting a Rootfs
 
-```properties
-spring.datasource.url=jdbc:postgresql://localhost:5432/variatespring
-spring.datasource.username=yourUsername
-spring.datasource.password=yourPassword
+CrateRun needs an extracted root filesystem. The easiest option is Alpine
+Linux's minirootfs:
+
+```bash
+mkdir -p /tmp/alpine-rootfs
+curl -fsSL https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-3.20.3-x86_64.tar.gz \
+    | tar -xz -C /tmp/alpine-rootfs
 ```
 
-## **Endpoints Overview**
+You can also use `debootstrap` for Debian/Ubuntu or extract any OCI image layer.
 
-### **Category Endpoints**
+## Building
 
-- `POST /api/categories`: Create a new category
-- `GET /api/categories/{id}`: Retrieve a category by ID
-- `GET /api/categories`: List all categories
-- `PUT /api/categories/{id}`: Update a category by ID
-- `PATCH /api/categories/{id}`: Partially update a category
-- `DELETE /api/categories/{id}`: Delete a category
+```bash
+cd craterun
+cargo build --release
+```
 
-### **Product Endpoints**
+The binary is at `target/release/craterun`.
 
-- `POST /api/products`: Create a new product
-- `GET /api/products/{id}`: Retrieve a product by ID
-- `GET /api/products`: List all products
-- `PUT /api/products/{id}`: Update a product
-- `PATCH /api/products/{id}`: Partially update a product
-- `DELETE /api/products/{id}`: Delete a product
+## Usage
 
-### **Order Endpoints**
+### Run a container
 
-- `POST /api/orders`: Create a new order
-- `GET /api/orders/{id}`: Retrieve an order by ID
-- `GET /api/orders`: List all orders
-- `PUT /api/orders/{id}`: Update an order
-- `PATCH /api/orders/{id}`: Partially update an order
-- `DELETE /api/orders/{id}`: Delete an order
+```bash
+sudo ./target/release/craterun run \
+    --rootfs /tmp/alpine-rootfs \
+    -- /bin/sh -c 'echo "Hello from container!"'
+```
 
-### **Order Item Endpoints**
+This prints the container ID to stdout and exits with the container's exit code.
 
-- `POST /api/order-items`: Create a new order item
-- `GET /api/order-items/{id}`: Retrieve an order item by ID
-- `GET /api/order-items`: List all order items
-- `PUT /api/order-items/{id}`: Update an order item
-- `PATCH /api/order-items/{id}`: Partially update an order item
-- `DELETE /api/order-items/{id}`: Delete an order item
+### Run with resource limits
 
-### **Payment Endpoints**
+```bash
+sudo ./target/release/craterun run \
+    --rootfs /tmp/alpine-rootfs \
+    --memory 67108864 \
+    --pids 50 \
+    --cpu "50000 100000" \
+    --hostname mycontainer \
+    -- /bin/sh -c 'echo "limited!"'
+```
 
-- `POST /api/payments`: Create a new payment
-- `GET /api/payments/{id}`: Retrieve a payment by ID
-- `GET /api/payments`: List all payments
-- `PUT /api/payments/{id}`: Update a payment
-- `PATCH /api/payments/{id}`: Partially update a payment
-- `DELETE /api/payments/{id}`: Delete a payment
+- `--memory 67108864` — 64 MiB memory limit
+- `--pids 50` — max 50 processes
+- `--cpu "50000 100000"` — 50% of one CPU (50ms quota per 100ms period)
+- `--hostname mycontainer` — UTS hostname inside the container
 
-### **Review Endpoints**
+### List containers
 
-- `POST /api/reviews`: Create a new review
-- `GET /api/reviews/{id}`: Retrieve a review by ID
-- `GET /api/reviews`: List all reviews
-- `PUT /api/reviews/{id}`: Update a review
-- `PATCH /api/reviews/{id}`: Partially update a review
-- `DELETE /api/reviews/{id}`: Delete a review
+```bash
+sudo ./target/release/craterun ps
+```
 
-## **Security**
+Output:
 
-JWT-based authentication is used for securing the API. Publicly accessible endpoints include:
+```
+CONTAINER ID       PID      STATUS     CREATED                  COMMAND
+a1b2c3d4e5f67890   -        stopped    2025-06-15 10:30:00 UTC  /bin/sh -c echo Hello...
+```
 
-- `/api/auth/login`
-- `/api/auth/register`
-- `/swagger-ui/**`
-- `/v3/api-docs/**`
+### View logs
 
-All other endpoints require a valid JWT token to access.
+```bash
+sudo ./target/release/craterun logs a1b2c3d4
+```
 
-## **API Documentation**
+Prints the stdout (and stderr to stderr) captured during the container's run.
 
-Explore the API using Swagger UI. You can access the interactive API documentation via the following links:
+### Remove a container
 
-- **Swagger UI**: `http://localhost:8080/swagger-ui/index.html`
-- **OpenAPI Docs**: `http://localhost:8080/v3/api-docs`
+```bash
+sudo ./target/release/craterun rm a1b2c3d4
+```
 
-## **Running the Application**
+Use `--force` to remove a running container (sends SIGKILL first):
 
-To run the application locally:
+```bash
+sudo ./target/release/craterun rm --force a1b2c3d4
+```
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/7irelo/variate-jdbc-api.git
-   ```
+### Exec into a running container
 
-2. Navigate to the project directory:
-   ```bash
-   cd variate-jdbc-api
-   ```
+```bash
+sudo ./target/release/craterun exec a1b2c3d4 -- /bin/sh
+```
 
-3. Configure your PostgreSQL database credentials in `application.properties`.
+This enters the namespaces of the running container and executes the given
+command. Useful for debugging.
 
-4. Run the application using Maven:
-   ```bash
-   ./mvnw spring-boot:run
-   ```
+## Architecture
 
-## **Development**
+```
+src/
+├── main.rs              Entry point
+├── cli/
+│   ├── mod.rs           Argument definitions (clap derive)
+│   └── commands.rs      Command dispatch and handlers
+├── core/
+│   ├── mod.rs
+│   ├── id.rs            Container ID generation
+│   ├── model.rs         Data models (ContainerMeta, ContainerConfig, etc.)
+│   └── state.rs         State persistence (save/load/list/resolve)
+├── platform/
+│   ├── mod.rs
+│   └── linux/
+│       ├── mod.rs
+│       ├── namespaces.rs   unshare, clone flags, sethostname
+│       ├── mounts.rs       bind mount, pivot_root, mount /proc and /dev
+│       ├── cgroups.rs      cgroups v2 setup and teardown
+│       └── process.rs      fork, exec, container lifecycle
+└── util/
+    ├── mod.rs
+    └── fs.rs            Filesystem helpers
+```
 
-For local development, the project utilizes Maven for managing dependencies. You can take advantage of tools like `spring-boot-devtools` for live reloading during development.
+**Separation of concerns:**
 
-### **Key Dependencies**
+- `core/` — Pure logic: models, validation, state persistence. No syscalls.
+- `platform/linux/` — All Linux-specific syscalls and kernel interactions.
+- `cli/` — Argument parsing and user-facing output. Thin layer over core + platform.
+- `util/` — Shared filesystem helpers.
 
-- `spring-boot-starter-web`: Provides RESTful web services
-- `spring-boot-starter-jdbc`: For database access using JDBC
-- `spring-boot-starter-security`: To handle security features
-- `postgresql`: PostgreSQL JDBC Driver
-- `modelmapper`: For mapping entities to DTOs and vice versa
-- `jjwt`: For JWT-based authentication
-- `springdoc-openapi-ui`: For auto-generated Swagger documentation
+## Testing
 
-## **Contributing**
+### Unit tests
 
-We welcome contributions to improve the project! To contribute:
+```bash
+cargo test --lib
+cargo test --test unit_id --test unit_state --test unit_config
+```
 
-1. Fork the repository.
-2. Create your feature branch: `git checkout -b feature/new-feature`.
-3. Commit your changes: `git commit -m 'Add a new feature'`.
-4. Push to the branch: `git push origin feature/new-feature`.
-5. Open a pull request and provide a description of your changes.
+These run anywhere (including macOS/Windows for compilation checks).
 
-## **License**
+### Integration tests
 
-This project is licensed under the MIT License.
+Integration tests require Linux + root + an Alpine rootfs:
+
+```bash
+# Prepare rootfs
+mkdir -p tests/rootfs
+curl -fsSL https://dl-cdn.alpinelinux.org/alpine/v3.20/releases/x86_64/alpine-minirootfs-3.20.3-x86_64.tar.gz \
+    | tar -xz -C tests/rootfs
+
+# Run as root
+sudo env "PATH=$PATH" CRATERUN_TEST_ROOTFS=tests/rootfs cargo test --test integration_smoke -- --test-threads=1
+```
+
+Integration tests automatically skip if not running as root or if the rootfs is
+missing.
+
+## CI
+
+GitHub Actions runs on every pull request and push to main/master:
+
+1. **Lint & Unit Tests** — `cargo fmt --check`, `cargo clippy`, unit tests.
+2. **Integration Tests** — Downloads Alpine rootfs, runs smoke tests as root.
+
+See [`.github/workflows/ci.yml`](.github/workflows/ci.yml).
+
+## Container State
+
+State is stored in:
+
+- `/var/lib/craterun/<id>/` when running as root
+- `~/.craterun/<id>/` when running as a regular user
+
+Each container directory contains:
+
+- `metadata.json` — container metadata (ID, rootfs, cmd, PID, status, timestamps, limits)
+- `stdout.log` — captured stdout
+- `stderr.log` — captured stderr
+
+## Limitations (v1)
+
+- **Network namespace** is created but no veth pair or bridge is configured.
+  The container gets an isolated, empty network stack (loopback only). Use
+  `--net=host` in a future version if you need host networking.
+- **User namespaces** are not used in v1. The runtime requires root.
+- **Seccomp** filters are not applied. The container can make any syscall.
+- **Capabilities** are not explicitly dropped beyond what namespaces provide.
+- **Storage** — no overlay filesystem or copy-on-write. The rootfs is used
+  directly (consider using a read-only bind mount in production).
+- **No image pulling** — you must provide a pre-extracted rootfs.
+- **Single-host only** — no networking, orchestration, or registry support.
+
+## Security Notes
+
+- This is an **educational project**. The isolation it provides is real (kernel
+  namespaces + cgroups) but incomplete for production use.
+- The runtime refuses to use `/` as a rootfs to prevent host destruction.
+- The rootfs is validated to contain at least `bin/`, `usr/`, or `etc/`.
+- No seccomp or AppArmor profiles are applied.
+- The container runs as root inside its namespaces. In a production runtime you
+  would map UIDs via user namespaces and drop capabilities.
+
+## License
+
+MIT
