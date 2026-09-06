@@ -14,16 +14,27 @@ pub struct Cli {
 pub enum Command {
     /// Create and run a new container.
     Run {
+        /// Optional human-readable name. Must be unique, and may be used in
+        /// place of the container ID with ps, logs, exec, inspect and rm.
+        #[arg(long)]
+        name: Option<String>,
+
         /// Path to the root filesystem (e.g. an extracted Alpine minirootfs).
         #[arg(long)]
         rootfs: String,
 
-        /// Memory limit in bytes (e.g. 67108864 for 64 MiB). Passed to cgroup memory.max.
+        /// Memory limit, e.g. 256m, 2g, 64k, or a plain byte count.
+        /// Suffixes are binary multiples. Passed to cgroup memory.max.
         #[arg(long)]
-        memory: Option<u64>,
+        memory: Option<String>,
 
-        /// CPU bandwidth in the form `quota period` (microseconds), e.g. "100000 100000" for 100 %.
-        /// Passed to cgroup cpu.max.
+        /// Number of CPUs, e.g. 1.0 or 0.5. Converted to a cgroup cpu.max
+        /// quota against the default 100000us period. Conflicts with --cpu.
+        #[arg(long, conflicts_with = "cpu")]
+        cpus: Option<f64>,
+
+        /// Raw cgroup cpu.max value in the form `quota period` (microseconds),
+        /// e.g. "100000 100000" for 100 %. Prefer --cpus.
         #[arg(long)]
         cpu: Option<String>,
 
@@ -54,7 +65,7 @@ pub enum Command {
 
     /// Remove a stopped container.
     Rm {
-        /// Container ID (or unique prefix).
+        /// Container name, ID, or unique ID prefix.
         id: String,
 
         /// Force-remove even if the container is still running.
@@ -64,19 +75,23 @@ pub enum Command {
 
     /// Print the stdout/stderr logs of a container.
     Logs {
-        /// Container ID (or unique prefix).
+        /// Container name, ID, or unique ID prefix.
         id: String,
+
+        /// Keep printing new output until interrupted.
+        #[arg(short, long)]
+        follow: bool,
     },
 
     /// Display detailed container metadata as JSON.
     Inspect {
-        /// Container ID (or unique prefix).
+        /// Container name, ID, or unique ID prefix.
         id: String,
     },
 
     /// Execute a command inside a running container.
     Exec {
-        /// Container ID (or unique prefix).
+        /// Container name, ID, or unique ID prefix.
         id: String,
 
         /// The command (and arguments) to execute.

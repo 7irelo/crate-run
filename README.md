@@ -7,6 +7,10 @@ cgroups v2, pivot_root) to isolate and resource-limit processes.
 > **Warning:** This is an educational project. It is **not** production-hardened.
 > Do not use it to run untrusted workloads.
 
+## Screenshots
+
+![craterun CLI - help, run, ps, exec, logs, inspect, rm, resource limits and a full workflow](docs/screenshots/craterun-cli.png)
+
 ## Features (v1)
 
 | Feature | Status |
@@ -73,22 +77,41 @@ sudo ./target/release/craterun run \
 
 This prints the container ID to stdout and exits with the container's exit code.
 
+Give the container a name to avoid copying IDs around:
+
+```bash
+sudo ./target/release/craterun run \
+    --name myapp \
+    --rootfs /tmp/alpine-rootfs \
+    -- /bin/sh -c 'echo "Hello from container!"'
+```
+
+A name must be unique, may contain letters, digits, `-`, `_` and `.`, and
+cannot be made up only of hex characters (that would be ambiguous with a
+container ID). Anywhere a container ID is accepted — `ps`, `logs`, `exec`,
+`inspect`, `rm` — a name works too.
+
 ### Run with resource limits
 
 ```bash
 sudo ./target/release/craterun run \
     --rootfs /tmp/alpine-rootfs \
-    --memory 67108864 \
+    --memory 256m \
     --pids 50 \
-    --cpu "50000 100000" \
+    --cpus 0.5 \
     --hostname mycontainer \
     -- /bin/sh -c 'echo "limited!"'
 ```
 
-- `--memory 67108864` — 64 MiB memory limit
+- `--memory 256m` — 256 MiB memory limit. Accepts `k`, `m`, `g` and `t`
+  suffixes (binary multiples), or a plain byte count like `67108864`.
 - `--pids 50` — max 50 processes
-- `--cpu "50000 100000"` — 50% of one CPU (50ms quota per 100ms period)
+- `--cpus 0.5` — half of one CPU. Converted to a cgroup `cpu.max` quota
+  against the default 100000us period.
 - `--hostname mycontainer` — UTS hostname inside the container
+
+`--cpu "50000 100000"` still accepts a raw `cpu.max` value if you would rather
+set the quota and period yourself. It cannot be combined with `--cpus`.
 
 ### List containers
 
@@ -99,9 +122,11 @@ sudo ./target/release/craterun ps
 Output:
 
 ```
-CONTAINER ID       PID      STATUS     CREATED                  COMMAND
-a1b2c3d4e5f67890   -        stopped    2025-06-15 10:30:00 UTC  /bin/sh -c echo Hello...
+CONTAINER ID       NAME           PID      STATUS     CREATED                  COMMAND
+a1b2c3d4e5f67890   myapp          -        stopped    2025-06-15 10:30:00 UTC  /bin/sh -c echo Hello...
 ```
+
+Containers started without `--name` show `-` in the NAME column.
 
 ### View logs
 
@@ -110,6 +135,13 @@ sudo ./target/release/craterun logs a1b2c3d4
 ```
 
 Prints the stdout (and stderr to stderr) captured during the container's run.
+
+Pass `-f` / `--follow` to keep printing new output as it is written. Following
+stops on its own once the container is no longer running:
+
+```bash
+sudo ./target/release/craterun logs myapp --follow
+```
 
 ### Remove a container
 

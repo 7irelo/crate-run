@@ -29,6 +29,12 @@ impl fmt::Display for ContainerStatus {
 pub struct ContainerMeta {
     /// Unique hex container ID.
     pub id: String,
+    /// Optional unique human-readable name.
+    ///
+    /// Defaults to `None` when absent so metadata written by older versions
+    /// still deserializes.
+    #[serde(default)]
+    pub name: Option<String>,
     /// Absolute path to the root filesystem.
     pub rootfs: String,
     /// The command (and arguments) the container was started with.
@@ -54,6 +60,7 @@ pub struct ContainerMeta {
 /// Configuration for launching a new container. Constructed from CLI arguments.
 #[derive(Debug, Clone)]
 pub struct ContainerConfig {
+    pub name: Option<String>,
     pub rootfs: String,
     pub cmd: Vec<String>,
     pub hostname: String,
@@ -79,6 +86,7 @@ mod tests {
     fn meta_serialization_round_trip() {
         let meta = ContainerMeta {
             id: "abcdef0123456789".into(),
+            name: Some("myapp".into()),
             rootfs: "/tmp/rootfs".into(),
             cmd: vec!["/bin/sh".into(), "-c".into(), "echo hi".into()],
             pid: 12345,
@@ -94,6 +102,7 @@ mod tests {
         let json = serde_json::to_string(&meta).expect("serialize");
         let back: ContainerMeta = serde_json::from_str(&json).expect("deserialize");
         assert_eq!(back.id, meta.id);
+        assert_eq!(back.name.as_deref(), Some("myapp"));
         assert_eq!(back.rootfs, meta.rootfs);
         assert_eq!(back.cmd, meta.cmd);
         assert_eq!(back.pid, meta.pid);

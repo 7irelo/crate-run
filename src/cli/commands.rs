@@ -1,36 +1,61 @@
 use std::fs;
+use std::io::{self, Read, Seek, SeekFrom, Write};
+use std::path::Path;
+use std::thread;
+use std::time::Duration;
 
 use anyhow::{bail, Context, Result};
 
 use crate::cli::{Cli, Command};
 use crate::core::model::{ContainerConfig, ContainerStatus};
 use crate::core::state;
+use crate::util::units;
 
 /// Dispatch a parsed CLI command to the appropriate handler.
 pub fn dispatch(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Run {
+            name,
             rootfs,
             memory,
+            cpus,
             cpu,
             pids,
             uid,
             gid,
             hostname,
             cmd,
-        } => cmd_run(ContainerConfig {
-            rootfs,
-            cmd,
-            hostname,
-            memory,
-            cpu,
-            pids,
-            uid,
-            gid,
-        }),
+        } => {
+            if let Some(name) = name.as_deref() {
+                state::validate_name(name)?;
+                state::ensure_name_available(name)?;
+            }
+
+            // --memory accepts human sizes; the cgroup file wants bytes.
+            let memory = memory.as_deref().map(units::parse_size).transpose()?;
+
+            // --cpus is a friendlier spelling of --cpu; clap already rejects
+            // passing both.
+            let cpu = match cpus {
+                Some(cpus) => Some(units::cpus_to_cpu_max(cpus)?),
+                None => cpu,
+            };
+
+            cmd_run(ContainerConfig {
+                name,
+                rootfs,
+                cmd,
+                hostname,
+                memory,
+                cpu,
+                pids,
+                uid,
+                gid,
+            })
+        }
         Command::Ps => cmd_ps(),
         Command::Rm { id, force } => cmd_rm(&id, force),
-        Command::Logs { id } => cmd_logs(&id),
+        Command::Logs { id, follow } => cmd_logs(&id, follow),
         Command::Inspect { id } => cmd_inspect(&id),
         Command::Exec { id, cmd } => cmd_exec(&id, &cmd),
     }
@@ -62,8 +87,8 @@ fn cmd_ps() -> Result<()> {
     let ids = state::list_containers()?;
 
     println!(
-        "{:<18} {:<8} {:<10} {:<24} {}",
-        "CONTAINER ID", "PID", "STATUS", "CREATED", "COMMAND"
+        "{:<18} {:<14} {:<8} {:<10} {:<24} {}",
+        "CONTAINER ID", "NAME", "PID", "STATUS", "CREATED", "COMMAND"
     );
 
     for id in ids {
@@ -87,9 +112,12 @@ fn cmd_ps() -> Result<()> {
             cmd_str
         };
 
+        let name_display = meta.name.clone().unwrap_or_else(|| "-".to_string());
+
         println!(
-            "{:<18} {:<8} {:<10} {:<24} {}",
+            "{:<18} {:<14} {:<8} {:<10} {:<24} {}",
             &meta.id[..16.min(meta.id.len())],
+            name_display,
             pid_str,
             meta.status,
             created,
@@ -103,7 +131,7 @@ fn cmd_ps() -> Result<()> {
 // ─── rm ─────────────────────────────────────────────────────────────────────
 
 fn cmd_rm(id_prefix: &str, force: bool) -> Result<()> {
-    let id = state::resolve_id(id_prefix)?;
+    let id = state::resolve_ref(id_prefix)?;
     let mut meta = state::load_meta(&id)?;
     state::refresh_status(&mut meta)?;
 
@@ -135,35 +163,89 @@ fn cmd_rm(id_prefix: &str, force: bool) -> Result<()> {
 
 // ─── logs ───────────────────────────────────────────────────────────────────
 
-fn cmd_logs(id_prefix: &str) -> Result<()> {
-    let id = state::resolve_id(id_prefix)?;
+fn cmd_logs(id_prefix: &str, follow: bool) -> Result<()> {
+    let id = state::resolve_ref(id_prefix)?;
 
     let stdout_path = state::log_path(&id, state::STDOUT_LOG)?;
     let stderr_path = state::log_path(&id, state::STDERR_LOG)?;
 
-    if stdout_path.exists() {
-        let contents =
-            fs::read_to_string(&stdout_path).context("failed to read stdout.log")?;
-        if !contents.is_empty() {
-            print!("{contents}");
+    let mut stdout_offset = dump_from(&stdout_path, 0, false)?;
+    let mut stderr_offset = dump_from(&stderr_path, 0, true)?;
+
+    if !follow {
+        return Ok(());
+    }
+
+    // Poll both log files, printing whatever has been appended since the last
+    // pass. Following stops once the container is no longer running and there
+    // is nothing further to read.
+    loop {
+        thread::sleep(FOLLOW_POLL_INTERVAL);
+
+        stdout_offset = dump_from(&stdout_path, stdout_offset, false)?;
+        stderr_offset = dump_from(&stderr_path, stderr_offset, true)?;
+
+        let mut meta = state::load_meta(&id)?;
+        state::refresh_status(&mut meta)?;
+        if meta.status != ContainerStatus::Running {
+            // One final drain, so output written as the process exited is not lost.
+            dump_from(&stdout_path, stdout_offset, false)?;
+            dump_from(&stderr_path, stderr_offset, true)?;
+            return Ok(());
+        }
+    }
+}
+
+/// How often `--follow` re-reads the log files.
+const FOLLOW_POLL_INTERVAL: Duration = Duration::from_millis(300);
+
+/// Print everything in `path` beyond `offset`, returning the new offset.
+///
+/// A missing file is treated as empty, since a container may not have written
+/// anything yet.
+fn dump_from(path: &Path, offset: u64, to_stderr: bool) -> Result<u64> {
+    if !path.exists() {
+        return Ok(offset);
+    }
+
+    let mut file = fs::File::open(path)
+        .with_context(|| format!("failed to open {}", path.display()))?;
+
+    let len = file
+        .metadata()
+        .with_context(|| format!("failed to stat {}", path.display()))?
+        .len();
+
+    // A truncated or rotated file: start over rather than seek past the end.
+    let start = if len < offset { 0 } else { offset };
+    if len == start {
+        return Ok(len);
+    }
+
+    file.seek(SeekFrom::Start(start))
+        .with_context(|| format!("failed to seek in {}", path.display()))?;
+
+    let mut buf = String::new();
+    file.read_to_string(&mut buf)
+        .with_context(|| format!("failed to read {}", path.display()))?;
+
+    if !buf.is_empty() {
+        if to_stderr {
+            eprint!("{buf}");
+            io::stderr().flush().ok();
+        } else {
+            print!("{buf}");
+            io::stdout().flush().ok();
         }
     }
 
-    if stderr_path.exists() {
-        let contents =
-            fs::read_to_string(&stderr_path).context("failed to read stderr.log")?;
-        if !contents.is_empty() {
-            eprint!("{contents}");
-        }
-    }
-
-    Ok(())
+    Ok(len)
 }
 
 // ─── inspect ────────────────────────────────────────────────────────────────
 
 fn cmd_inspect(id_prefix: &str) -> Result<()> {
-    let id = state::resolve_id(id_prefix)?;
+    let id = state::resolve_ref(id_prefix)?;
     let mut meta = state::load_meta(&id)?;
     state::refresh_status(&mut meta)?;
 
@@ -177,7 +259,7 @@ fn cmd_inspect(id_prefix: &str) -> Result<()> {
 // ─── exec ───────────────────────────────────────────────────────────────────
 
 fn cmd_exec(id_prefix: &str, cmd: &[String]) -> Result<()> {
-    let id = state::resolve_id(id_prefix)?;
+    let id = state::resolve_ref(id_prefix)?;
     let mut meta = state::load_meta(&id)?;
     state::refresh_status(&mut meta)?;
 

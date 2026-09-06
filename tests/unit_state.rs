@@ -13,6 +13,8 @@ fn setup_home(tmp: &TempDir) {
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 struct ContainerMeta {
     id: String,
+    #[serde(default)]
+    name: Option<String>,
     rootfs: String,
     cmd: Vec<String>,
     pid: u32,
@@ -41,6 +43,7 @@ fn state_directory_uses_home() {
 fn metadata_json_round_trip() {
     let meta = ContainerMeta {
         id: "aabbccdd11223344".into(),
+        name: Some("myapp".into()),
         rootfs: "/tmp/rootfs".into(),
         cmd: vec!["/bin/sh".into(), "-c".into(), "echo hello".into()],
         pid: 0,
@@ -57,6 +60,7 @@ fn metadata_json_round_trip() {
     let back: ContainerMeta = serde_json::from_str(&json).unwrap();
 
     assert_eq!(back.id, "aabbccdd11223344");
+    assert_eq!(back.name.as_deref(), Some("myapp"));
     assert_eq!(back.rootfs, "/tmp/rootfs");
     assert_eq!(back.cmd, vec!["/bin/sh", "-c", "echo hello"]);
     assert_eq!(back.exit_code, Some(0));

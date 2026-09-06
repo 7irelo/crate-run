@@ -95,6 +95,7 @@ fn parent_process(
     // Save metadata.
     let meta = crate::core::model::ContainerMeta {
         id: container_id.to_string(),
+        name: config.name.clone(),
         rootfs: config.rootfs.clone(),
         cmd: config.cmd.clone(),
         pid: child.as_raw() as u32,

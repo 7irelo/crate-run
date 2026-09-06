@@ -110,6 +110,70 @@ pub fn resolve_id(prefix: &str) -> Result<String> {
     }
 }
 
+/// Validate a container name.
+///
+/// Names must be usable as a shell word and must not be mistakable for a hex
+/// ID prefix, so a leading run of hex characters alone is rejected.
+pub fn validate_name(name: &str) -> Result<()> {
+    if name.is_empty() {
+        bail!("container name cannot be empty");
+    }
+    if name.len() > 64 {
+        bail!("container name '{name}' is too long (max 64 characters)");
+    }
+    if !name
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.')
+    {
+        bail!(
+            "invalid container name '{name}': use only letters, digits, '-', '_' and '.'"
+        );
+    }
+    if !name.starts_with(|c: char| c.is_ascii_alphanumeric()) {
+        bail!("invalid container name '{name}': must start with a letter or digit");
+    }
+    if name.chars().all(|c| c.is_ascii_hexdigit()) {
+        bail!(
+            "invalid container name '{name}': names made only of hex characters              would be ambiguous with container IDs"
+        );
+    }
+    Ok(())
+}
+
+/// Find the container with the given name, if any.
+pub fn find_by_name(name: &str) -> Result<Option<ContainerMeta>> {
+    for id in list_containers()? {
+        if let Ok(meta) = load_meta(&id) {
+            if meta.name.as_deref() == Some(name) {
+                return Ok(Some(meta));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// Fail if the given name is already taken by another container.
+pub fn ensure_name_available(name: &str) -> Result<()> {
+    if let Some(existing) = find_by_name(name)? {
+        bail!(
+            "container name '{name}' is already used by {}",
+            &existing.id[..12.min(existing.id.len())]
+        );
+    }
+    Ok(())
+}
+
+/// Resolve a name, full ID, or unique ID prefix to a full container ID.
+///
+/// Names are checked first so that a container named after its own ID prefix
+/// still resolves predictably.
+pub fn resolve_ref(reference: &str) -> Result<String> {
+    if let Some(meta) = find_by_name(reference)? {
+        return Ok(meta.id);
+    }
+    resolve_id(reference)
+}
+
 /// Remove the state directory for a container.
 pub fn remove_container_dir(id: &str) -> Result<()> {
     let dir = container_dir(id)?;
@@ -163,6 +227,7 @@ mod tests {
     fn sample_meta(id: &str) -> ContainerMeta {
         ContainerMeta {
             id: id.into(),
+            name: None,
             rootfs: "/tmp/rootfs".into(),
             cmd: vec!["/bin/sh".into()],
             pid: 0,
